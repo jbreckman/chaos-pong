@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<link rel="icon" href="data:,">
+<title>Chaos Pong 3D</title>
+<style>
+  :root {
+    --accent: #4de1ff;
+    --accent2: #ff9d4d;
+    --danger: #ff5470;
+    --good: #7dffa5;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #06080f; }
+  body {
+    font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: #eaf6ff;
+    -webkit-user-select: none; user-select: none;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; cursor: none; touch-action: none; }
+
+  /* ---------- HUD ---------- */
+  .hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+
+  #scoreboard {
+    position: absolute; top: max(14px, env(safe-area-inset-top)); left: 50%;
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 18px;
+    padding: 10px 26px;
+    background: rgba(10, 16, 30, 0.55);
+    border: 1px solid rgba(120, 200, 255, 0.18);
+    border-radius: 999px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    opacity: 0; transition: opacity .4s;
+  }
+  #scoreboard.show { opacity: 1; }
+  .side { display: flex; flex-direction: column; align-items: center; min-width: 64px; }
+  .side .name { font-size: 11px; letter-spacing: 2.5px; opacity: .7; font-weight: 600; }
+  .side .pts { font-size: 34px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+  .side .serve-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 8px var(--accent);
+    opacity: 0; transition: opacity .3s; margin-top: 3px;
+  }
+  .side.serving .serve-dot { opacity: 1; }
+  #score-you .pts { color: var(--accent); text-shadow: 0 0 18px rgba(77,225,255,.35); }
+  #score-bot .pts { color: var(--accent2); text-shadow: 0 0 18px rgba(255,157,77,.35); }
+  .divider { font-size: 20px; opacity: .35; font-weight: 300; }
+
+  #obstacle-banner {
+    position: absolute; top: calc(max(14px, env(safe-area-inset-top)) + 78px); left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 7px 20px; border-radius: 999px;
+    font-size: 13px; font-weight: 700; letter-spacing: 1.5px;
+    background: rgba(30, 14, 40, 0.6);
+    border: 1px solid rgba(255, 120, 220, 0.3);
+    color: #ffd7f5;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    opacity: 0; transition: opacity .45s, transform .45s;
+    white-space: nowrap;
+  }
+  #obstacle-banner.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #obstacle-banner.clean { border-color: rgba(125,255,165,.25); color: #d8ffe6; background: rgba(10,30,20,.55); }
+
+  #message {
+    position: absolute; top: 34%; left: 50%; transform: translate(-50%,-50%) scale(.85);
+    font-size: clamp(34px, 7vw, 64px); font-weight: 900; letter-spacing: 4px;
+    text-shadow: 0 4px 40px rgba(0,0,0,.6);
+    opacity: 0; transition: opacity .25s, transform .25s;
+    text-align: center; white-space: nowrap;
+  }
+  #message.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #message .sub { display: block; font-size: 16px; font-weight: 600; letter-spacing: 3px; opacity: .8; margin-top: 6px; }
+
+  #hint {
+    position: absolute; bottom: calc(max(18px, env(safe-area-inset-bottom)) + 78px); left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px; letter-spacing: 1.5px; font-weight: 700;
+    color: #eaf6ff;
+    padding: 8px 20px; border-radius: 999px;
+    background: rgba(10, 16, 30, 0.6);
+    border: 1px solid rgba(120, 200, 255, 0.25);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    opacity: 0; transition: opacity .4s; text-align: center; white-space: nowrap;
+  }
+  #hint.show { opacity: 1; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .55; } }
+
+  /* charge meter */
+  #charge-wrap {
+    position: absolute; bottom: max(22px, env(safe-area-inset-bottom)); left: 50%;
+    transform: translateX(-50%);
+    width: min(280px, 55vw); height: 10px; border-radius: 999px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(120,200,255,.2);
+    opacity: 0; transition: opacity .2s;
+    overflow: hidden;
+  }
+  #charge-wrap.show { opacity: 1; }
+  #charge-fill {
+    height: 100%; width: 0%; border-radius: 999px;
+    background: linear-gradient(90deg, #4de1ff, #7dffa5 55%, #ffe14d 80%, #ff5470);
+    box-shadow: 0 0 14px rgba(125,255,165,.8);
+    transition: none;
+  }
+
+  /* ---------- Overlays (menu / game over) ---------- */
+  .overlay {
+    position: fixed; inset: 0; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 38%, rgba(16,28,52,.78), rgba(4,6,12,.92) 75%);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    transition: opacity .5s, visibility .5s; text-align: center; padding: 24px;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+  .overlay.hidden .btn { pointer-events: none; }
+  .title {
+    font-size: clamp(44px, 9vw, 84px); font-weight: 900; letter-spacing: 2px; line-height: 1;
+    background: linear-gradient(120deg, #4de1ff 10%, #b47dff 45%, #ff9d4d 90%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 6px 30px rgba(77,225,255,.25));
+  }
+  .subtitle { margin-top: 10px; font-size: 15px; letter-spacing: 3px; opacity: .75; font-weight: 600; }
+  .rules-hint { margin-top: 26px; font-size: 13.5px; line-height: 1.9; opacity: .75; max-width: 420px; }
+  .rules-hint b { color: var(--accent); font-weight: 700; }
+  .diff-row { display: flex; gap: 14px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .mode-row { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .btn.mode { font-size: 13px; padding: 11px 22px; opacity: .65; border-color: rgba(180,200,230,.3); background: rgba(180,200,230,.06); }
+  .btn.mode.selected { opacity: 1; border-color: rgba(77,225,255,.6); background: rgba(77,225,255,.16); box-shadow: 0 0 22px rgba(77,225,255,.18); }
+  .diff-row { margin-top: 18px; }
+  .strobe-line {
+    pointer-events: auto; cursor: pointer; margin-top: 26px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 12.5px; letter-spacing: 1px; font-weight: 600; opacity: .85;
+  }
+  .strobe-main { display: flex; align-items: center; gap: 8px; }
+  .strobe-line input { accent-color: #4de1ff; cursor: pointer; width: 15px; height: 15px; }
+  .strobe-line .warn { font-size: 11px; opacity: .65; letter-spacing: .4px; font-weight: 500; }
+  .overlay.hidden .strobe-line { pointer-events: none; }
+  .btn {
+    pointer-events: auto; cursor: pointer;
+    font-family: inherit; font-size: 15px; font-weight: 800; letter-spacing: 2px;
+    color: #eaf6ff; padding: 15px 34px; border-radius: 14px;
+    background: rgba(77,225,255,.08);
+    border: 1px solid rgba(77,225,255,.35);
+    transition: transform .15s, background .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-2px); background: rgba(77,225,255,.18); box-shadow: 0 10px 30px rgba(77,225,255,.2); }
+  .btn:active { transform: translateY(0) scale(.97); }
+  .btn.easy { border-color: rgba(125,255,165,.4); background: rgba(125,255,165,.08); }
+  .btn.easy:hover { background: rgba(125,255,165,.18); box-shadow: 0 10px 30px rgba(125,255,165,.2); }
+  .btn.hard { border-color: rgba(255,84,112,.45); background: rgba(255,84,112,.08); }
+  .btn.hard:hover { background: rgba(255,84,112,.18); box-shadow: 0 10px 30px rgba(255,84,112,.2); }
+  #gameover-title { font-size: clamp(40px, 8vw, 72px); font-weight: 900; letter-spacing: 3px; }
+  #gameover-title.win { color: var(--good); text-shadow: 0 0 40px rgba(125,255,165,.4); }
+  #gameover-title.lose { color: var(--danger); text-shadow: 0 0 40px rgba(255,84,112,.4); }
+  #gameover-score { margin-top: 12px; font-size: 26px; font-weight: 700; opacity: .85; font-variant-numeric: tabular-nums; }
+</style>
+  <script type="module" crossorigin src="./assets/index-zaBDYlxh.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="hud">
+    <div id="scoreboard"></div>
+    <div id="obstacle-banner"></div>
+    <div id="message"></div>
+    <div id="hint"></div>
+    <div id="charge-wrap"><div id="charge-fill"></div></div>
+  </div>
+
+  <div class="overlay" id="menu">
+    <div class="title">CHAOS PONG</div>
+    <div class="subtitle">FIRST-PERSON TABLE TENNIS · vs ROBOT</div>
+    <div class="rules-hint">
+      Move the <b>mouse</b> (or your <b>finger</b>) to swing your paddle.<br/>
+      <b>Hold</b> to charge a smash — <b>release</b> to hit. A quick tap is a soft touch.<br/>
+      First to <b>11</b>, win by 2. Survive the escalating chaos…<br/>Press <b>M</b> to toggle the soundtrack.
+    </div>
+    <div class="mode-row">
+      <button class="btn mode selected" data-mode="classic">CLASSIC · 1v1</button>
+      <button class="btn mode" data-mode="hex">HEXAGON · 1v1v1</button>
+    </div>
+    <div class="diff-row">
+      <button class="btn easy" data-diff="easy">EASY</button>
+      <button class="btn" data-diff="medium">MEDIUM</button>
+      <button class="btn hard" data-diff="hard">HARD</button>
+    </div>
+    <label class="strobe-line">
+      <span class="strobe-main"><input type="checkbox" id="strobe-ok" checked /> allow ⚡ strobe rounds</span>
+      <span class="warn">⚠ contains flashing lights — turn off if you are sensitive to them</span>
+    </label>
+  </div>
+
+  <div class="overlay hidden" id="gameover">
+    <div id="gameover-title"></div>
+    <div id="gameover-score"></div>
+    <div class="diff-row">
+      <button class="btn" id="btn-rematch">REMATCH</button>
+      <button class="btn" id="btn-menu">CHANGE DIFFICULTY</button>
+    </div>
+  </div>
+
+</body>
+</html>
