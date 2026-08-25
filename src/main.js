@@ -33,7 +33,7 @@ const SEAT_META = {
     accent: [null, 0xff6a2a],
     ring: [null, 0x1fb8e8],
   },
-  triangle: {
+  hex: {
     names: ['YOU', 'RED', 'BLU'],
     colors: ['#4de1ff', '#ff5470', '#5b8dff'],
     labels: ['YOU', 'RED BOT', 'BLUE BOT'],

@@ -48,29 +48,35 @@ export const world = {
       const nw = this.halfW + 0.16;
       this.nets = [{ ax: -nw, az: 0, bx: nw, bz: 0, nx: 0, nz: 1 }];
     } else {
+      // hexagon, 3 players on alternating edges with neutral edges between
       this.seats = 3;
-      this.apothem = 0.95 * scale;
-      this.edgeHalf = this.apothem * Math.tan(Math.PI / 3);
+      this.apothem = 1.05 * scale;
+      this.edgeHalf = this.apothem * Math.tan(Math.PI / 6);   // half of one hex edge
       this.playerZ = this.apothem + 0.26;
       this.robotDist = this.apothem + 0.26;
-      this.camZ = this.apothem + 1.12;
-      this.camY = 1.55 + Math.max(0, scale - 1) * 0.45;
-      this.playerXRange = Math.max(1.4, this.edgeHalf * 0.9);
-      this.hasNet = false;
-      this.speedScale = 0.92 * Math.pow(scale, 0.8);
+      this.camZ = this.apothem + 1.08;
+      this.camY = 1.54 + Math.max(0, scale - 1) * 0.45;
+      this.playerXRange = Math.max(1.15, this.edgeHalf + 0.5);
+      this.hasNet = true;
+      this.speedScale = 0.9 * Math.pow(scale, 0.8);
       this.seatDirs = []; this.seatTans = [];
       for (let k = 0; k < 3; k++) {
         const th = (k * Math.PI * 2) / 3;   // seat0 +z, seat1 right (+x), seat2 left
         this.seatDirs.push(new THREE.Vector2(Math.sin(th), Math.cos(th)));
         this.seatTans.push(new THREE.Vector2(Math.cos(th), -Math.sin(th)));
       }
-      // three nets, center -> each vertex (sector boundaries)
+      // all 6 edge normals bound the hexagon
+      this.boundNormals = [];
+      for (let j = 0; j < 6; j++) {
+        const th = (j * Math.PI) / 3;
+        this.boundNormals.push(new THREE.Vector2(Math.sin(th), Math.cos(th)));
+      }
+      // three nets: center -> midpoint of each NEUTRAL edge (the sector dividers)
       this.nets = [];
-      const Rc = this.apothem * 2;
       for (let j = 0; j < 3; j++) {
         const th = THREE.MathUtils.degToRad(60 + 120 * j);
         const vx = Math.sin(th), vz = Math.cos(th);
-        this.nets.push({ ax: 0, az: 0, bx: vx * Rc, bz: vz * Rc, nx: Math.cos(th), nz: -Math.sin(th) });
+        this.nets.push({ ax: 0, az: 0, bx: vx * this.apothem, bz: vz * this.apothem, nx: Math.cos(th), nz: -Math.sin(th) });
       }
     }
   },
@@ -79,7 +85,7 @@ export const world = {
     if (this.mode === 'classic') {
       return Math.abs(x) <= this.halfW + 0.01 && Math.abs(z) <= this.halfL + 0.01;
     }
-    for (const d of this.seatDirs) if (x * d.x + z * d.y > this.apothem + 0.01) return false;
+    for (const d of this.boundNormals) if (x * d.x + z * d.y > this.apothem + 0.01) return false;
     return true;
   },
 
@@ -102,10 +108,10 @@ export const world = {
       };
     }
     for (let i = 0; i < 40; i++) {
-      const x = (Math.random() * 2 - 1) * this.apothem * 1.8;
-      const z = (Math.random() * 2 - 1) * this.apothem * 1.8;
+      const x = (Math.random() * 2 - 1) * this.apothem * 1.2;
+      const z = (Math.random() * 2 - 1) * this.apothem * 1.2;
       let ok = true;
-      for (const d of this.seatDirs) if (x * d.x + z * d.y > this.apothem * marginFrac) { ok = false; break; }
+      for (const d of this.boundNormals) if (x * d.x + z * d.y > this.apothem * marginFrac) { ok = false; break; }
       if (ok) return { x, z };
     }
     return { x: 0, z: 0 };

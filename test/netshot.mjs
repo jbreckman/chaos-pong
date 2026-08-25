@@ -10,7 +10,7 @@ const errors = [];
 page.on('pageerror', e => errors.push(e.message));
 await page.goto('http://localhost:5178/', { waitUntil: 'networkidle0', timeout: 20000 });
 await page.screenshot({ path: SCRATCH + '/n0-menu.png' });
-await page.click('button[data-mode="triangle"]');
+await page.click('button[data-mode="hex"]');
 await page.click('button[data-diff="easy"]');
 await new Promise(r => setTimeout(r, 1400));
 // serve so we can watch a triangle rally with real nets

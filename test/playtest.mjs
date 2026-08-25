@@ -14,7 +14,7 @@ await page.goto('http://localhost:5178/', { waitUntil: 'networkidle0', timeout: 
 await new Promise(r => setTimeout(r, 900));
 await page.evaluate(() => { window.__frames = 0; const t = () => { window.__frames++; requestAnimationFrame(t); }; requestAnimationFrame(t); });
 await page.screenshot({ path: SCRATCH + '/o1-menu.png' });
-if (process.env.MODE === 'triangle') { await page.click('button[data-mode="triangle"]'); await new Promise(r => setTimeout(r, 300)); }
+if (process.env.MODE === 'hex') { await page.click('button[data-mode="hex"]'); await new Promise(r => setTimeout(r, 300)); }
 await page.click('button[data-diff="easy"]');
 await new Promise(r => setTimeout(r, 1300));
 await page.screenshot({ path: SCRATCH + '/o2-serve.png' });

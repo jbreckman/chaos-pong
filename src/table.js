@@ -28,7 +28,7 @@ export const table = {
   rebuild() {
     if (group) { disposeGroup(group); scene.remove(group); }
     group = new THREE.Group();
-    if (world.mode === 'classic') buildRect(); else buildTri();
+    if (world.mode === 'classic') buildRect(); else buildHex();
     scene.add(group);
   },
 
@@ -161,19 +161,18 @@ function buildRect() {
   }
 }
 
-function buildTri() {
+function buildHex() {
   const A = world.apothem;
-  const Rc = A * 2;                     // circumradius of equilateral triangle
-  // vertices between the seat edges (edge normals at 0/120/240 deg -> vertices at 60/180/300)
+  const Rv = A / Math.cos(Math.PI / 6);          // circumradius
+  // vertices at 30 + 60j degrees; player edges have normals at 0/120/240
   const verts = [];
-  for (let j = 0; j < 3; j++) {
-    const th = THREE.MathUtils.degToRad(60 + 120 * j);
-    verts.push([Math.sin(th) * Rc, Math.cos(th) * Rc]);
+  for (let j = 0; j < 6; j++) {
+    const th = THREE.MathUtils.degToRad(30 + 60 * j);
+    verts.push([Math.sin(th) * Rv, Math.cos(th) * Rv]);
   }
   const shape = new THREE.Shape();
-  shape.moveTo(verts[0][0], -verts[0][1]);   // shape y maps to -world z after rotateX
-  shape.lineTo(verts[1][0], -verts[1][1]);
-  shape.lineTo(verts[2][0], -verts[2][1]);
+  shape.moveTo(verts[0][0], -verts[0][1]);       // shape y maps to -world z after rotateX
+  for (let j = 1; j < 6; j++) shape.lineTo(verts[j][0], -verts[j][1]);
   shape.closePath();
   const geo = new THREE.ExtrudeGeometry(shape, { depth: TABLE.THICKNESS, bevelEnabled: false });
   geo.rotateX(-Math.PI / 2);
@@ -189,10 +188,10 @@ function buildTri() {
     return m;
   };
 
-  // Edge lines
+  // white boundary lines on all six edges
   const lineY = TABLE_TOP + 0.001;
-  for (let j = 0; j < 3; j++) {
-    const [x1, z1] = verts[j], [x2, z2] = verts[(j + 1) % 3];
+  for (let j = 0; j < 6; j++) {
+    const [x1, z1] = verts[j], [x2, z2] = verts[(j + 1) % 6];
     const len = Math.hypot(x2 - x1, z2 - z1);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(0.022, len - 0.02), lineMat);
     m.rotation.x = -Math.PI / 2;
@@ -200,16 +199,18 @@ function buildTri() {
     m.position.set((x1 + x2) / 2, lineY, (z1 + z2) / 2);
     group.add(m);
   }
-  // Three real nets along the sector dividers (center -> each vertex)
+
+  // three nets: center -> midpoint of each neutral edge (sector dividers)
   const netY = TABLE_TOP + TABLE.NET_HEIGHT / 2;
-  for (const [vx, vz] of verts) {
-    const len = Math.hypot(vx, vz);
-    const net = netMesh(len, false);
-    net.rotation.y = Math.atan2(-vz, vx);
-    net.position.set(vx / 2, netY, vz / 2);
+  for (let j = 0; j < 3; j++) {
+    const th = THREE.MathUtils.degToRad(60 + 120 * j);
+    const mx = Math.sin(th) * A, mz = Math.cos(th) * A;
+    const net = netMesh(A, false);
+    net.rotation.y = Math.atan2(-mz, mx);
+    net.position.set(mx / 2, netY, mz / 2);
     group.add(net);
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, TABLE.NET_HEIGHT + 0.03, 8), postMat);
-    post.position.set(vx, TABLE_TOP + (TABLE.NET_HEIGHT + 0.03) / 2, vz);
+    post.position.set(mx, TABLE_TOP + (TABLE.NET_HEIGHT + 0.03) / 2, mz);
     group.add(post);
   }
   const centerPost = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, TABLE.NET_HEIGHT + 0.04, 10), postMat);
