@@ -82,9 +82,10 @@ export const table = {
   },
 };
 
-let _netTex = null;
-function netTexture() {
-  if (_netTex) return _netTex;
+const _netTex = { tape: null, plain: null };
+function netTexture(tape) {
+  const key = tape ? 'tape' : 'plain';
+  if (_netTex[key]) return _netTex[key];
   const nc = document.createElement('canvas');
   nc.width = 256; nc.height = 32;
   const ng = nc.getContext('2d');
@@ -92,15 +93,18 @@ function netTexture() {
   ng.strokeStyle = 'rgba(30,38,55,0.9)'; ng.lineWidth = 1;
   for (let i = 0; i <= 64; i++) { ng.beginPath(); ng.moveTo(i * 4, 0); ng.lineTo(i * 4, 32); ng.stroke(); }
   for (let i = 0; i <= 8; i++) { ng.beginPath(); ng.moveTo(0, i * 4); ng.lineTo(256, i * 4); ng.stroke(); }
-  ng.fillStyle = '#fff'; ng.fillRect(0, 0, 256, 3);
-  _netTex = new THREE.CanvasTexture(nc);
-  _netTex.colorSpace = THREE.SRGBColorSpace;
-  return _netTex;
+  // classic net keeps its white top tape; triangle nets skip it so they don't
+  // read as white lines painted on the table from the player's viewing angle
+  if (tape) { ng.fillStyle = '#fff'; ng.fillRect(0, 0, 256, 3); }
+  const tex = new THREE.CanvasTexture(nc);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  _netTex[key] = tex;
+  return tex;
 }
-function netMesh(len) {
+function netMesh(len, tape = true) {
   return new THREE.Mesh(
     new THREE.PlaneGeometry(len, TABLE.NET_HEIGHT),
-    new THREE.MeshBasicMaterial({ map: netTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false })
+    new THREE.MeshBasicMaterial({ map: netTexture(tape), transparent: true, side: THREE.DoubleSide, depthWrite: false })
   );
 }
 
@@ -192,7 +196,7 @@ function buildTri() {
     const len = Math.hypot(x2 - x1, z2 - z1);
     const m = new THREE.Mesh(new THREE.PlaneGeometry(0.022, len - 0.02), lineMat);
     m.rotation.x = -Math.PI / 2;
-    m.rotation.z = -Math.atan2(x2 - x1, z2 - z1);
+    m.rotation.z = Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, lineY, (z1 + z2) / 2);
     group.add(m);
   }
@@ -200,7 +204,7 @@ function buildTri() {
   const netY = TABLE_TOP + TABLE.NET_HEIGHT / 2;
   for (const [vx, vz] of verts) {
     const len = Math.hypot(vx, vz);
-    const net = netMesh(len);
+    const net = netMesh(len, false);
     net.rotation.y = Math.atan2(-vz, vx);
     net.position.set(vx / 2, netY, vz / 2);
     group.add(net);
