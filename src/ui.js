@@ -2,8 +2,6 @@ const $ = id => document.getElementById(id);
 
 const els = {
   scoreboard: $('scoreboard'),
-  ptsYou: $('pts-you'), ptsBot: $('pts-bot'),
-  sideYou: $('score-you'), sideBot: $('score-bot'),
   banner: $('obstacle-banner'),
   message: $('message'),
   hint: $('hint'),
@@ -14,18 +12,34 @@ const els = {
 
 let msgTimer = null;
 let hintTimer = null;
+let ptEls = [], sideEls = [];
 
 export const ui = {
   els,
   showScoreboard(v) { els.scoreboard.classList.toggle('show', v); },
-  setScore(you, bot) {
-    els.ptsYou.textContent = you;
-    els.ptsBot.textContent = bot;
+
+  buildScoreboard(names, colors) {
+    els.scoreboard.innerHTML = '';
+    ptEls = []; sideEls = [];
+    names.forEach((n, i) => {
+      if (i > 0) {
+        const d = document.createElement('span');
+        d.className = 'divider'; d.textContent = '·';
+        els.scoreboard.appendChild(d);
+      }
+      const side = document.createElement('div');
+      side.className = 'side';
+      side.innerHTML = `<span class="name">${n}</span>` +
+        `<span class="pts" style="color:${colors[i]};text-shadow:0 0 18px ${colors[i]}59">0</span>` +
+        `<span class="serve-dot" style="background:${colors[i]};box-shadow:0 0 8px ${colors[i]}"></span>`;
+      els.scoreboard.appendChild(side);
+      ptEls.push(side.querySelector('.pts'));
+      sideEls.push(side);
+    });
   },
-  setServer(server) {
-    els.sideYou.classList.toggle('serving', server === 'you');
-    els.sideBot.classList.toggle('serving', server === 'bot');
-  },
+  setScore(arr) { arr.forEach((v, i) => { if (ptEls[i]) ptEls[i].textContent = v; }); },
+  setServer(idx) { sideEls.forEach((s, i) => s.classList.toggle('serving', i === idx)); },
+
   banner(labels) {
     if (labels.length === 0) {
       els.banner.textContent = '✓ CLEAN TABLE';
@@ -37,6 +51,7 @@ export const ui = {
     els.banner.classList.add('show');
   },
   hideBanner() { els.banner.classList.remove('show'); },
+
   message(text, sub = '', dur = 1400) {
     clearTimeout(msgTimer);
     els.message.innerHTML = text + (sub ? `<span class="sub">${sub}</span>` : '');
@@ -44,6 +59,7 @@ export const ui = {
     if (dur > 0) msgTimer = setTimeout(() => els.message.classList.remove('show'), dur);
   },
   clearMessage() { clearTimeout(msgTimer); els.message.classList.remove('show'); },
+
   hint(text, dur = 0) {
     clearTimeout(hintTimer);
     els.hint.textContent = text;
@@ -51,16 +67,18 @@ export const ui = {
     if (dur > 0) hintTimer = setTimeout(() => els.hint.classList.remove('show'), dur);
   },
   clearHint() { clearTimeout(hintTimer); els.hint.classList.remove('show'); },
+
   charge(v) {
     els.chargeWrap.classList.toggle('show', v !== null);
     if (v !== null) els.chargeFill.style.width = (v * 100).toFixed(1) + '%';
   },
+
   showMenu(v) { els.menu.classList.toggle('hidden', !v); },
-  showGameOver(won, you, bot) {
-    els.goTitle.textContent = won ? 'YOU WIN!' : 'BOT WINS';
-    els.goTitle.className = won ? 'win' : 'lose';
-    els.goTitle.id = 'gameover-title';
-    els.goScore.textContent = `${you} — ${bot}`;
+  showGameOver(won, title, scoreText) {
+    els.goTitle.textContent = title;
+    els.goTitle.classList.toggle('win', won);
+    els.goTitle.classList.toggle('lose', !won);
+    els.goScore.textContent = scoreText;
     els.gameover.classList.remove('hidden');
   },
   hideGameOver() { els.gameover.classList.add('hidden'); },

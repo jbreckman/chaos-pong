@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { softCircleTexture } from './texutil.js';
 import {
   GRAVITY, BALL_RADIUS, BALL_RESTITUTION, BALL_FRICTION, AIR_DRAG,
-  TABLE_TOP, NET_TOP, HALF_L, HALF_W,
+  TABLE_TOP, NET_TOP,
 } from './constants.js';
+import { world } from './world.js';
 
 const TRAIL_N = 26;
 
@@ -13,6 +14,7 @@ export class Ball {
     this.pos = new THREE.Vector3(0, 1.2, 0);
     this.vel = new THREE.Vector3();
     this.active = false;
+    this.sunk = false;
 
     const color = fake ? 0xffd83d : 0xffffff;
     this.mesh = new THREE.Mesh(
@@ -25,7 +27,6 @@ export class Ball {
     this.mesh.castShadow = true;
     scene.add(this.mesh);
 
-    // Trail (points, fading size/alpha)
     this.trailPts = new Float32Array(TRAIL_N * 3);
     const tg = new THREE.BufferGeometry();
     tg.setAttribute('position', new THREE.BufferAttribute(this.trailPts, 3));
@@ -52,6 +53,7 @@ export class Ball {
     this.pos.copy(pos);
     this.vel.copy(vel);
     this.active = true;
+    this.sunk = false;
     this.mesh.visible = true;
     this.trail.visible = true;
     for (let i = 0; i < TRAIL_N; i++) {
@@ -61,29 +63,27 @@ export class Ball {
   }
 
   /**
-   * Step physics. forceFn(pos, vel, outAccel) adds obstacle accelerations.
-   * events: { onBounceTable(side), onNet(), onOut(), onBlockHit() } — only for real ball.
+   * forceFn(pos, vel, outAccel) adds obstacle accelerations.
+   * events: { onBounceTable(sector, pos), onNet(), onHole(sector, pos), onFloor(pos), onOut() }
    */
   step(dt, forceFn, events) {
     if (!this.active) return;
     const p = this.pos, v = this.vel;
 
-    // accelerations
     _a.set(0, -GRAVITY, 0);
     if (forceFn) forceFn(p, v, _a);
     v.addScaledVector(_a, dt);
     v.multiplyScalar(Math.max(0, 1 - AIR_DRAG * dt));
 
-    const prevZ = p.z;
+    const prevZ = p.z, prevY = p.y;
     p.addScaledVector(v, dt);
 
-    // Net collision (real ball crossing z=0 below net top)
-    if (!this.fake && Math.sign(prevZ) !== Math.sign(p.z) && prevZ !== p.z) {
+    // Net (classic mode only)
+    if (!this.fake && world.hasNet && Math.sign(prevZ) !== Math.sign(p.z) && prevZ !== p.z) {
       const f = (0 - prevZ) / (p.z - prevZ);
-      const yAt = p.y - v.y * dt * (1 - f);  // approx y at crossing
+      const yAt = p.y - v.y * dt * (1 - f);
       const xAt = p.x - v.x * dt * (1 - f);
-      if (yAt < NET_TOP + BALL_RADIUS && yAt > TABLE_TOP - 0.05 && Math.abs(xAt) < HALF_W + 0.16) {
-        // hit the net: kill forward speed, drop
+      if (yAt < NET_TOP + BALL_RADIUS && yAt > TABLE_TOP - 0.05 && Math.abs(xAt) < world.halfW + 0.16) {
         p.z = prevZ > 0 ? 0.02 : -0.02;
         v.z *= -0.18;
         v.x *= 0.5;
@@ -92,14 +92,28 @@ export class Ball {
       }
     }
 
-    // Table bounce
-    if (v.y < 0 && p.y - BALL_RADIUS <= TABLE_TOP &&
-        Math.abs(p.x) <= HALF_W + 0.01 && Math.abs(p.z) <= HALF_L + 0.01) {
-      p.y = TABLE_TOP + BALL_RADIUS;
-      v.y = -v.y * BALL_RESTITUTION;
-      v.x *= BALL_FRICTION; v.z *= BALL_FRICTION;
-      if (v.y < 0.3) v.y = Math.max(v.y, 0.0); // let it settle
-      if (events?.onBounceTable) events.onBounceTable(p.z >= 0 ? 'player' : 'robot', p.clone());
+    // Table: only from above, and never after sinking through a hole
+    if (!this.sunk && v.y < 0 &&
+        p.y - BALL_RADIUS <= TABLE_TOP && prevY - BALL_RADIUS >= TABLE_TOP - 0.02 &&
+        world.containsPoint(p.x, p.z)) {
+      const surf = world.surfaceAt(p.x, p.z);
+      if (surf.hole) {
+        this.sunk = true;    // falls straight through
+        if (!this.fake && events?.onHole) events.onHole(world.sectorOf(p.x, p.z), p.clone());
+      } else {
+        if (surf.normal) {
+          const vn = v.dot(surf.normal);
+          if (vn < 0) v.addScaledVector(surf.normal, -(1 + BALL_RESTITUTION) * vn);
+          p.y = TABLE_TOP + BALL_RADIUS + 0.001;
+        } else {
+          p.y = TABLE_TOP + BALL_RADIUS;
+          v.y = -v.y * (surf.ice ? 0.70 : BALL_RESTITUTION);
+        }
+        if (surf.ice) { v.x *= 1.02; v.z *= 1.02; }      // skids on ice
+        else { v.x *= BALL_FRICTION; v.z *= BALL_FRICTION; }
+        if (v.y < 0.3) v.y = Math.max(v.y, 0.0);
+        if (events?.onBounceTable) events.onBounceTable(world.sectorOf(p.x, p.z), p.clone());
+      }
     }
 
     // Floor
@@ -110,14 +124,12 @@ export class Ball {
       if (events?.onFloor) events.onFloor(p.clone());
     }
 
-    // Far out of bounds
-    if (Math.abs(p.x) > 6 || Math.abs(p.z) > 7 || p.y > 8) {
+    if (Math.abs(p.x) > 8 || Math.abs(p.z) > 9 || p.y > 10) {
       if (events?.onOut) events.onOut();
     }
 
     this.mesh.position.copy(p);
 
-    // Trail update (every ~12ms)
     this.trailTimer += dt;
     if (this.trailTimer > 0.012) {
       this.trailTimer = 0;
@@ -130,29 +142,40 @@ export class Ball {
 }
 const _a = new THREE.Vector3();
 
-/** Simulate the real ball forward (obstacle forces included) until it reaches targetZ or times out.
- *  Returns predicted {x, y, t} at that plane, or null. Used by robot AI. */
-export function predictAtZ(pos, vel, targetZ, forceFn, maxT = 3.0) {
+/**
+ * Simulate the real ball (obstacle forces + surface features included) until its
+ * xz-projection onto seat direction `dir2` crosses `planeDist` moving outward.
+ * Returns predicted {x, y, z, t} or null (floor / hole / never arrives).
+ */
+export function predictAtPlane(pos, vel, dir2, planeDist, forceFn, maxT = 3.0) {
   _sp.copy(pos); _sv.copy(vel);
   const dt = 1 / 120;
-  const dir = Math.sign(targetZ - pos.z);
   for (let t = 0; t < maxT; t += dt) {
     _sa.set(0, -GRAVITY, 0);
     if (forceFn) forceFn(_sp, _sv, _sa);
     _sv.addScaledVector(_sa, dt);
     _sv.multiplyScalar(Math.max(0, 1 - AIR_DRAG * dt));
+    const prevY = _sp.y;
     _sp.addScaledVector(_sv, dt);
-    // table bounce in sim
-    if (_sv.y < 0 && _sp.y - BALL_RADIUS <= TABLE_TOP &&
-        Math.abs(_sp.x) <= HALF_W + 0.01 && Math.abs(_sp.z) <= HALF_L + 0.01) {
-      _sp.y = TABLE_TOP + BALL_RADIUS;
-      _sv.y = -_sv.y * BALL_RESTITUTION;
-      _sv.x *= BALL_FRICTION; _sv.z *= BALL_FRICTION;
+    if (_sv.y < 0 && _sp.y - BALL_RADIUS <= TABLE_TOP && prevY - BALL_RADIUS >= TABLE_TOP - 0.02 &&
+        world.containsPoint(_sp.x, _sp.z)) {
+      const surf = world.surfaceAt(_sp.x, _sp.z);
+      if (surf.hole) return null;
+      if (surf.normal) {
+        const vn = _sv.dot(surf.normal);
+        if (vn < 0) _sv.addScaledVector(surf.normal, -(1 + BALL_RESTITUTION) * vn);
+        _sp.y = TABLE_TOP + BALL_RADIUS + 0.001;
+      } else {
+        _sp.y = TABLE_TOP + BALL_RADIUS;
+        _sv.y = -_sv.y * (surf.ice ? 0.70 : BALL_RESTITUTION);
+      }
+      if (surf.ice) { _sv.x *= 1.02; _sv.z *= 1.02; }
+      else { _sv.x *= BALL_FRICTION; _sv.z *= BALL_FRICTION; }
     }
-    if (_sp.y < 0.05) return null; // hits floor first
-    if (dir > 0 ? _sp.z >= targetZ : _sp.z <= targetZ) {
-      return { x: _sp.x, y: _sp.y, t };
-    }
+    if (_sp.y < 0.05) return null;
+    const proj = _sp.x * dir2.x + _sp.z * dir2.y;
+    const vproj = _sv.x * dir2.x + _sv.z * dir2.y;
+    if (proj >= planeDist && vproj > 0) return { x: _sp.x, y: _sp.y, z: _sp.z, t };
   }
   return null;
 }
@@ -160,8 +183,7 @@ const _sp = new THREE.Vector3();
 const _sv = new THREE.Vector3();
 const _sa = new THREE.Vector3();
 
-/** Ballistic shot solver: from -> lands near target with given horizontal speed.
- *  Raises the arc until the net is cleared. Returns a velocity Vector3. */
+/** Ballistic shot solver: raises the arc until the net (if any) is cleared. */
 export function solveShot(from, target, hSpeed, netMargin = 0.06) {
   const dx = target.x - from.x;
   const dz = target.z - from.z;
@@ -170,11 +192,13 @@ export function solveShot(from, target, hSpeed, netMargin = 0.06) {
   let vy = 0;
   for (let i = 0; i < 5; i++) {
     vy = (target.y - from.y + 0.5 * GRAVITY * T * T) / T;
-    const f = (0 - from.z) / dz;
-    if (f > 0.02 && f < 0.98) {
-      const t = f * T;
-      const yAtNet = from.y + vy * t - 0.5 * GRAVITY * t * t;
-      if (yAtNet < NET_TOP + BALL_RADIUS + netMargin) { T *= 1.16; continue; }
+    if (world.hasNet) {
+      const f = (0 - from.z) / dz;
+      if (f > 0.02 && f < 0.98) {
+        const t = f * T;
+        const yAtNet = from.y + vy * t - 0.5 * GRAVITY * t * t;
+        if (yAtNet < NET_TOP + BALL_RADIUS + netMargin) { T *= 1.16; continue; }
+      }
     }
     break;
   }

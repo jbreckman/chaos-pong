@@ -238,3 +238,22 @@ export function toggleMusic() {
 }
 
 export function musicOn() { return !!music; }
+
+// --- chaos sfx ---
+Object.assign(sfx, {
+  boom(vol = 1) {
+    blip(90, 30, 0.4, 0.5 * vol, 'sine');
+    noise(0.35, 0.45 * vol, 350, 0.4);
+  },
+  meteorWhistle() { blip(2200, 600, 0.8, 0.06, 'sine'); },
+  rumble() {
+    blip(60, 28, 1.4, 0.35, 'sine');
+    noise(1.2, 0.2, 160, 0.3);
+  },
+  chomp() {
+    noise(0.09, 0.5, 900, 0.7);
+    setTimeout(() => { blip(160, 60, 0.18, 0.45, 'square'); noise(0.15, 0.4, 500, 0.5); }, 110);
+  },
+  eruption() { noise(0.9, 0.3, 300, 0.35); blip(70, 40, 0.7, 0.2, 'sine'); },
+  sunk() { blip(700, 60, 0.5, 0.35, 'sine'); setTimeout(() => noise(0.12, 0.25, 800, 0.6), 380); },
+});

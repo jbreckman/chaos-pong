@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { TABLE, TABLE_TOP, HALF_L, HALF_W, CAM_BASE, CAM_FOV, ROBOT_Z } from './constants.js';
+import { TABLE_TOP, CAM_FOV } from './constants.js';
 
 export function createRenderer(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -15,7 +15,7 @@ export function createRenderer(container) {
 
 export function createCamera() {
   const cam = new THREE.PerspectiveCamera(CAM_FOV, window.innerWidth / window.innerHeight, 0.05, 120);
-  cam.position.set(CAM_BASE.x, CAM_BASE.y, CAM_BASE.z);
+  cam.position.set(0, 1.52, 2.42);
   cam.lookAt(0, TABLE_TOP + 0.1, -1.2);
   return cam;
 }
@@ -67,7 +67,6 @@ export function createScene() {
   scene.add(fill);
 
   buildOutdoors(scene);
-  buildTable(scene);
   return scene;
 }
 
@@ -182,66 +181,6 @@ function buildOutdoors(scene) {
   }
 }
 
-function buildTable(scene) {
-  const group = new THREE.Group();
-
-  const topMat = new THREE.MeshStandardMaterial({ color: 0x10418f, roughness: 0.35, metalness: 0.1 });
-  const top = new THREE.Mesh(
-    new THREE.BoxGeometry(TABLE.WIDTH, TABLE.THICKNESS, TABLE.LENGTH), topMat);
-  top.position.y = TABLE_TOP - TABLE.THICKNESS / 2;
-  top.castShadow = true; top.receiveShadow = true;
-  group.add(top);
-
-  const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const lineY = TABLE_TOP + 0.001;
-  const mkLine = (w, l, x, z) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, l), lineMat);
-    m.rotation.x = -Math.PI / 2;
-    m.position.set(x, lineY, z);
-    group.add(m);
-  };
-  const lw = 0.02;
-  mkLine(lw, TABLE.LENGTH, -HALF_W + lw / 2, 0);
-  mkLine(lw, TABLE.LENGTH,  HALF_W - lw / 2, 0);
-  mkLine(TABLE.WIDTH, lw, 0, -HALF_L + lw / 2);
-  mkLine(TABLE.WIDTH, lw, 0,  HALF_L - lw / 2);
-  mkLine(0.006, TABLE.LENGTH, 0, 0);
-
-  const legMat = new THREE.MeshStandardMaterial({ color: 0x30363f, roughness: 0.6, metalness: 0.5 });
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, TABLE_TOP - TABLE.THICKNESS, 0.06), legMat);
-    leg.position.set(sx * (HALF_W - 0.14), (TABLE_TOP - TABLE.THICKNESS) / 2, sz * (HALF_L - 0.22));
-    leg.castShadow = true;
-    group.add(leg);
-  }
-
-  const netW = TABLE.WIDTH + TABLE.NET_OVERHANG * 2;
-  const nc = document.createElement('canvas');
-  nc.width = 256; nc.height = 32;
-  const ng = nc.getContext('2d');
-  ng.fillStyle = 'rgba(40,50,70,0.30)'; ng.fillRect(0, 0, 256, 32);
-  ng.strokeStyle = 'rgba(30,38,55,0.9)'; ng.lineWidth = 1;
-  for (let i = 0; i <= 64; i++) { ng.beginPath(); ng.moveTo(i * 4, 0); ng.lineTo(i * 4, 32); ng.stroke(); }
-  for (let i = 0; i <= 8; i++) { ng.beginPath(); ng.moveTo(0, i * 4); ng.lineTo(256, i * 4); ng.stroke(); }
-  ng.fillStyle = '#fff'; ng.fillRect(0, 0, 256, 3);
-  const netTex = new THREE.CanvasTexture(nc);
-  netTex.colorSpace = THREE.SRGBColorSpace;
-  const net = new THREE.Mesh(
-    new THREE.PlaneGeometry(netW, TABLE.NET_HEIGHT),
-    new THREE.MeshBasicMaterial({ map: netTex, transparent: true, side: THREE.DoubleSide, depthWrite: false })
-  );
-  net.position.set(0, TABLE_TOP + TABLE.NET_HEIGHT / 2, 0);
-  group.add(net);
-  const postMat = new THREE.MeshStandardMaterial({ color: 0x333844, roughness: 0.4, metalness: 0.6 });
-  for (const sx of [-1, 1]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, TABLE.NET_HEIGHT + 0.03, 8), postMat);
-    post.position.set(sx * netW / 2, TABLE_TOP + (TABLE.NET_HEIGHT + 0.03) / 2, 0);
-    group.add(post);
-  }
-
-  scene.add(group);
-}
-
 // ---- Paddle ----
 export function createPaddle(color = 0xd1342f) {
   const g = new THREE.Group();
@@ -267,7 +206,7 @@ export function createPaddle(color = 0xd1342f) {
 }
 
 // ---- Robot avatar ----
-export function createRobot() {
+export function createRobot(accent = 0xff6a2a, ring = 0x1fb8e8) {
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdde4ee, roughness: 0.35, metalness: 0.45 });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x465064, roughness: 0.5, metalness: 0.5 });
@@ -282,7 +221,7 @@ export function createRobot() {
   head.castShadow = true;
   g.add(head);
 
-  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff6a2a });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: accent });
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.035, 0.04), eyeMat);
   visor.position.set(0, 1.49, 0.11);
   g.add(visor);
@@ -301,7 +240,7 @@ export function createRobot() {
   g.add(base);
   const glowRing = new THREE.Mesh(
     new THREE.TorusGeometry(0.15, 0.014, 8, 24),
-    new THREE.MeshBasicMaterial({ color: 0x1fb8e8 })
+    new THREE.MeshBasicMaterial({ color: ring })
   );
   glowRing.rotation.x = Math.PI / 2;
   glowRing.position.y = 0.78;
@@ -312,6 +251,5 @@ export function createRobot() {
   arm.position.set(0.24, 1.16, 0.06);
   g.add(arm);
 
-  g.position.set(0, 0, ROBOT_Z - 0.45);
   return g;
 }

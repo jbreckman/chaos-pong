@@ -1,7 +1,16 @@
 # Chaos Pong 🏓
 
-First-person 3D table tennis vs a robot, with escalating per-point chaos:
-crosswind fans, floating blocks, black holes, and yellow decoy balls.
+First-person 3D table tennis vs robots, with escalating per-point chaos.
+
+**Two modes**: classic 1v1, and **Triangle** 1v1v1 — three players around a
+triangular table, each hitting to the player on their right.
+
+**15 chaos modifiers** roll in as the score climbs (stacking up to 3):
+crosswind fan, floating block, black hole (it can swallow the ball), decoy
+balls, bumpy table, giant/tiny table, volcanoes, meteor showers that punch
+holes in the table (sink a shot in one — instant winner!), snow & ice, drunk
+mode, giant paddle, earthquakes, a monster that bites a chunk out of the
+table, and strobe rounds (off-switch + photosensitivity warning on the menu).
 
 ## Play
 
@@ -36,8 +45,10 @@ SCRATCH=/tmp node test/mobiletest.mjs   # portrait touch check
 
 ## Architecture
 
-- `src/main.js` — game loop (240 Hz fixed-step physics), input, robot AI, scoring rules
+- `src/main.js` — game loop (240 Hz fixed-step physics), input, seat-based rules engine (2 or 3 players), bot AI
+- `src/world.js` — mutable per-point world: table shape/size, seats/sectors, surface features (holes, bumps, ice)
+- `src/table.js` — rect/triangle table builders, hole decals, snow overlays
 - `src/ball.js` — ball physics, flight prediction (used by the AI), ballistic shot solver
-- `src/obstacles.js` — the four obstacle types + escalation schedule
-- `src/scene.js` — outdoor arena, table, paddles, robot avatar
+- `src/obstacles.js` — all 15 chaos modifiers + escalation schedule
+- `src/scene.js` — outdoor arena, paddles, robot avatars
 - `src/audio.js` — all sound is synthesized WebAudio (sfx + 112 BPM soundtrack), zero assets

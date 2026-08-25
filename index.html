@@ -131,6 +131,18 @@
   .rules-hint { margin-top: 26px; font-size: 13.5px; line-height: 1.9; opacity: .75; max-width: 420px; }
   .rules-hint b { color: var(--accent); font-weight: 700; }
   .diff-row { display: flex; gap: 14px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .mode-row { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .btn.mode { font-size: 13px; padding: 11px 22px; opacity: .65; border-color: rgba(180,200,230,.3); background: rgba(180,200,230,.06); }
+  .btn.mode.selected { opacity: 1; border-color: rgba(77,225,255,.6); background: rgba(77,225,255,.16); box-shadow: 0 0 22px rgba(77,225,255,.18); }
+  .diff-row { margin-top: 18px; }
+  .strobe-line {
+    pointer-events: auto; cursor: pointer; margin-top: 26px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 12.5px; letter-spacing: 1px; font-weight: 600; opacity: .85;
+  }
+  .strobe-line input { accent-color: #4de1ff; margin-right: 6px; cursor: pointer; }
+  .strobe-line .warn { font-size: 11px; opacity: .65; letter-spacing: .4px; font-weight: 500; }
+  .overlay.hidden .strobe-line { pointer-events: none; }
   .btn {
     pointer-events: auto; cursor: pointer;
     font-family: inherit; font-size: 15px; font-weight: 800; letter-spacing: 2px;
@@ -155,15 +167,7 @@
   <div id="app"></div>
 
   <div class="hud">
-    <div id="scoreboard">
-      <div class="side" id="score-you">
-        <span class="name">YOU</span><span class="pts" id="pts-you">0</span><span class="serve-dot"></span>
-      </div>
-      <span class="divider">·</span>
-      <div class="side" id="score-bot">
-        <span class="name">BOT</span><span class="pts" id="pts-bot">0</span><span class="serve-dot"></span>
-      </div>
-    </div>
+    <div id="scoreboard"></div>
     <div id="obstacle-banner"></div>
     <div id="message"></div>
     <div id="hint"></div>
@@ -178,11 +182,20 @@
       <b>Hold</b> to charge a smash — <b>release</b> to hit. A quick tap is a soft touch.<br/>
       First to <b>11</b>, win by 2. Survive the escalating chaos…<br/>Press <b>M</b> to toggle the soundtrack.
     </div>
+    <div class="mode-row">
+      <button class="btn mode selected" data-mode="classic">CLASSIC · 1v1</button>
+      <button class="btn mode" data-mode="triangle">TRIANGLE · 1v1v1</button>
+    </div>
     <div class="diff-row">
       <button class="btn easy" data-diff="easy">EASY</button>
       <button class="btn" data-diff="medium">MEDIUM</button>
       <button class="btn hard" data-diff="hard">HARD</button>
     </div>
+    <label class="strobe-line">
+      <input type="checkbox" id="strobe-ok" checked />
+      allow ⚡ strobe rounds
+      <span class="warn">⚠ contains flashing lights — turn off if you are sensitive to them</span>
+    </label>
   </div>
 
   <div class="overlay hidden" id="gameover">
