@@ -270,7 +270,7 @@ export class ObstacleManager {
     const n = 8 + Math.floor(rng() * 4);
     for (let i = 0; i < n; i++) {
       const p = world.randomPointOnTable(0.85);
-      if (world.hasNet && Math.abs(p.z) < 0.18) continue;
+      if (world.distToNets(p.x, p.z) < 0.14) continue;
       const r = 0.10 + rng() * 0.07;
       const h = 0.035 + rng() * 0.025;
       world.surface.bumps.push({ x: p.x, z: p.z, r, h });
@@ -289,7 +289,7 @@ export class ObstacleManager {
     const n = 1 + (rng() < 0.4 ? 1 : 0);
     for (let i = 0; i < n; i++) {
       let p = world.randomPointOnTable(0.7);
-      for (let tries = 0; tries < 10 && world.hasNet && Math.abs(p.z) < 0.3 * world.scale; tries++) {
+      for (let tries = 0; tries < 10 && world.distToNets(p.x, p.z) < 0.3; tries++) {
         p = world.randomPointOnTable(0.7);
       }
       const baseR = 0.16, h = 0.24;

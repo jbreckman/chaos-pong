@@ -75,20 +75,35 @@ export class Ball {
     v.addScaledVector(_a, dt);
     v.multiplyScalar(Math.max(0, 1 - AIR_DRAG * dt));
 
-    const prevZ = p.z, prevY = p.y;
+    const prevX = p.x, prevZ = p.z, prevY = p.y;
     p.addScaledVector(v, dt);
 
-    // Net (classic mode only)
-    if (!this.fake && world.hasNet && Math.sign(prevZ) !== Math.sign(p.z) && prevZ !== p.z) {
-      const f = (0 - prevZ) / (p.z - prevZ);
-      const yAt = p.y - v.y * dt * (1 - f);
-      const xAt = p.x - v.x * dt * (1 - f);
-      if (yAt < NET_TOP + BALL_RADIUS && yAt > TABLE_TOP - 0.05 && Math.abs(xAt) < world.halfW + 0.16) {
-        p.z = prevZ > 0 ? 0.02 : -0.02;
-        v.z *= -0.18;
-        v.x *= 0.5;
-        v.y = Math.min(v.y, 0.4) * 0.4;
-        if (events?.onNet) events.onNet();
+    // Nets (classic: 1 across the middle; triangle: 3 along the sector dividers)
+    if (!this.fake) {
+      for (const net of world.nets) {
+        const s0 = (prevX - net.ax) * net.nx + (prevZ - net.az) * net.nz;
+        const s1 = (p.x - net.ax) * net.nx + (p.z - net.az) * net.nz;
+        if ((s0 > 0) === (s1 > 0) || Math.abs(s0 - s1) < 1e-9) continue;
+        const f = s0 / (s0 - s1);
+        const cx = prevX + (p.x - prevX) * f;
+        const cz = prevZ + (p.z - prevZ) * f;
+        const cy = prevY + (p.y - prevY) * f;
+        const ux = net.bx - net.ax, uz = net.bz - net.az;
+        const L2 = ux * ux + uz * uz;
+        const tSeg = ((cx - net.ax) * ux + (cz - net.az) * uz) / L2;
+        if (tSeg < -0.02 || tSeg > 1.02) continue;
+        if (cy < NET_TOP + BALL_RADIUS && cy > TABLE_TOP - 0.05) {
+          const side = s0 > 0 ? 1 : -1;
+          p.x = cx + net.nx * side * 0.02;
+          p.z = cz + net.nz * side * 0.02;
+          const vn = v.x * net.nx + v.z * net.nz;
+          v.x -= 1.18 * vn * net.nx;
+          v.z -= 1.18 * vn * net.nz;
+          v.x *= 0.6; v.z *= 0.6;
+          v.y = Math.min(v.y, 0.4) * 0.4;
+          if (events?.onNet) events.onNet();
+          break;
+        }
       }
     }
 
@@ -190,17 +205,26 @@ export function solveShot(from, target, hSpeed, netMargin = 0.06) {
   const d = Math.max(Math.hypot(dx, dz), 0.001);
   let T = d / hSpeed;
   let vy = 0;
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 6; i++) {
     vy = (target.y - from.y + 0.5 * GRAVITY * T * T) / T;
-    if (world.hasNet) {
-      const f = (0 - from.z) / dz;
-      if (f > 0.02 && f < 0.98) {
-        const t = f * T;
-        const yAtNet = from.y + vy * t - 0.5 * GRAVITY * t * t;
-        if (yAtNet < NET_TOP + BALL_RADIUS + netMargin) { T *= 1.16; continue; }
-      }
+    let blocked = false;
+    for (const net of world.nets) {
+      const s0 = (from.x - net.ax) * net.nx + (from.z - net.az) * net.nz;
+      const s1 = (target.x - net.ax) * net.nx + (target.z - net.az) * net.nz;
+      if ((s0 > 0) === (s1 > 0)) continue;
+      const f = s0 / (s0 - s1);
+      if (f <= 0.02 || f >= 0.98) continue;
+      const cx = from.x + dx * f, cz = from.z + dz * f;
+      const ux = net.bx - net.ax, uz = net.bz - net.az;
+      const L2 = ux * ux + uz * uz;
+      const tSeg = ((cx - net.ax) * ux + (cz - net.az) * uz) / L2;
+      if (tSeg < -0.05 || tSeg > 1.05) continue;
+      const t = f * T;
+      const yAtNet = from.y + vy * t - 0.5 * GRAVITY * t * t;
+      if (yAtNet < NET_TOP + BALL_RADIUS + netMargin) { blocked = true; break; }
     }
-    break;
+    if (!blocked) break;
+    T *= 1.16;
   }
   return new THREE.Vector3(dx / T, vy, dz / T);
 }

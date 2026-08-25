@@ -82,6 +82,28 @@ export const table = {
   },
 };
 
+let _netTex = null;
+function netTexture() {
+  if (_netTex) return _netTex;
+  const nc = document.createElement('canvas');
+  nc.width = 256; nc.height = 32;
+  const ng = nc.getContext('2d');
+  ng.fillStyle = 'rgba(40,50,70,0.30)'; ng.fillRect(0, 0, 256, 32);
+  ng.strokeStyle = 'rgba(30,38,55,0.9)'; ng.lineWidth = 1;
+  for (let i = 0; i <= 64; i++) { ng.beginPath(); ng.moveTo(i * 4, 0); ng.lineTo(i * 4, 32); ng.stroke(); }
+  for (let i = 0; i <= 8; i++) { ng.beginPath(); ng.moveTo(0, i * 4); ng.lineTo(256, i * 4); ng.stroke(); }
+  ng.fillStyle = '#fff'; ng.fillRect(0, 0, 256, 3);
+  _netTex = new THREE.CanvasTexture(nc);
+  _netTex.colorSpace = THREE.SRGBColorSpace;
+  return _netTex;
+}
+function netMesh(len) {
+  return new THREE.Mesh(
+    new THREE.PlaneGeometry(len, TABLE.NET_HEIGHT),
+    new THREE.MeshBasicMaterial({ map: netTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false })
+  );
+}
+
 function addLegs(points) {
   for (const [x, z] of points) {
     const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, TABLE_TOP - TABLE.THICKNESS, 0.06), legMat);
@@ -125,20 +147,7 @@ function buildRect() {
 
   // Net
   const netW = W + TABLE.NET_OVERHANG * 2;
-  const nc = document.createElement('canvas');
-  nc.width = 256; nc.height = 32;
-  const ng = nc.getContext('2d');
-  ng.fillStyle = 'rgba(40,50,70,0.30)'; ng.fillRect(0, 0, 256, 32);
-  ng.strokeStyle = 'rgba(30,38,55,0.9)'; ng.lineWidth = 1;
-  for (let i = 0; i <= 64; i++) { ng.beginPath(); ng.moveTo(i * 4, 0); ng.lineTo(i * 4, 32); ng.stroke(); }
-  for (let i = 0; i <= 8; i++) { ng.beginPath(); ng.moveTo(0, i * 4); ng.lineTo(256, i * 4); ng.stroke(); }
-  ng.fillStyle = '#fff'; ng.fillRect(0, 0, 256, 3);
-  const netTex = new THREE.CanvasTexture(nc);
-  netTex.colorSpace = THREE.SRGBColorSpace;
-  const net = new THREE.Mesh(
-    new THREE.PlaneGeometry(netW, TABLE.NET_HEIGHT),
-    new THREE.MeshBasicMaterial({ map: netTex, transparent: true, side: THREE.DoubleSide, depthWrite: false })
-  );
+  const net = netMesh(netW);
   net.position.set(0, TABLE_TOP + TABLE.NET_HEIGHT / 2, 0);
   group.add(net);
   for (const sx of [-1, 1]) {
@@ -176,7 +185,7 @@ function buildTri() {
     return m;
   };
 
-  // Edge lines + sector divider lines (center -> each vertex)
+  // Edge lines
   const lineY = TABLE_TOP + 0.001;
   for (let j = 0; j < 3; j++) {
     const [x1, z1] = verts[j], [x2, z2] = verts[(j + 1) % 3];
@@ -186,18 +195,22 @@ function buildTri() {
     m.rotation.z = -Math.atan2(x2 - x1, z2 - z1);
     m.position.set((x1 + x2) / 2, lineY, (z1 + z2) / 2);
     group.add(m);
-    // divider from center to vertex j
-    const dl = Math.hypot(x1, z1);
-    const d = new THREE.Mesh(new THREE.PlaneGeometry(0.008, dl), lineMat);
-    d.rotation.x = -Math.PI / 2;
-    d.rotation.z = -Math.atan2(x1, z1);
-    d.position.set(x1 / 2, lineY, z1 / 2);
-    group.add(d);
   }
-  // Center hub marker instead of a net
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 12), postMat);
-  hub.position.y = TABLE_TOP + 0.03;
-  group.add(hub);
+  // Three real nets along the sector dividers (center -> each vertex)
+  const netY = TABLE_TOP + TABLE.NET_HEIGHT / 2;
+  for (const [vx, vz] of verts) {
+    const len = Math.hypot(vx, vz);
+    const net = netMesh(len);
+    net.rotation.y = Math.atan2(-vz, vx);
+    net.position.set(vx / 2, netY, vz / 2);
+    group.add(net);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, TABLE.NET_HEIGHT + 0.03, 8), postMat);
+    post.position.set(vx, TABLE_TOP + (TABLE.NET_HEIGHT + 0.03) / 2, vz);
+    group.add(post);
+  }
+  const centerPost = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, TABLE.NET_HEIGHT + 0.04, 10), postMat);
+  centerPost.position.y = TABLE_TOP + (TABLE.NET_HEIGHT + 0.04) / 2;
+  group.add(centerPost);
 
   addLegs(verts.map(([x, z]) => [x * 0.72, z * 0.72]));
 }

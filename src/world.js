@@ -21,6 +21,7 @@ export const world = {
   camY: 1.52,
   playerXRange: 1.18,
   hasNet: true,
+  nets: [],                   // net segments {ax,az,bx,bz,nx,nz} in xz
   speedScale: 1,
   seatDirs: [],               // Vector2 outward per seat (xz)
   seatTans: [],               // Vector2 edge tangent per seat
@@ -44,6 +45,8 @@ export const world = {
       this.speedScale = Math.pow(this.halfL / 1.37, 0.8);
       this.seatDirs = [new THREE.Vector2(0, 1), new THREE.Vector2(0, -1)];
       this.seatTans = [new THREE.Vector2(1, 0), new THREE.Vector2(-1, 0)];
+      const nw = this.halfW + 0.16;
+      this.nets = [{ ax: -nw, az: 0, bx: nw, bz: 0, nx: 0, nz: 1 }];
     } else {
       this.seats = 3;
       this.apothem = 0.95 * scale;
@@ -60,6 +63,14 @@ export const world = {
         const th = (k * Math.PI * 2) / 3;   // seat0 +z, seat1 right (+x), seat2 left
         this.seatDirs.push(new THREE.Vector2(Math.sin(th), Math.cos(th)));
         this.seatTans.push(new THREE.Vector2(Math.cos(th), -Math.sin(th)));
+      }
+      // three nets, center -> each vertex (sector boundaries)
+      this.nets = [];
+      const Rc = this.apothem * 2;
+      for (let j = 0; j < 3; j++) {
+        const th = THREE.MathUtils.degToRad(60 + 120 * j);
+        const vx = Math.sin(th), vz = Math.cos(th);
+        this.nets.push({ ax: 0, az: 0, bx: vx * Rc, bz: vz * Rc, nx: Math.cos(th), nz: -Math.sin(th) });
       }
     }
   },
@@ -120,6 +131,18 @@ export const world = {
       latFrac *= 0.6;
     }
     return { x: dir.x * this.apothem * 0.5, y: TABLE_TOP, z: dir.y * this.apothem * 0.5 };
+  },
+
+  distToNets(x, z) {
+    let best = Infinity;
+    for (const net of this.nets) {
+      const ux = net.bx - net.ax, uz = net.bz - net.az;
+      const L2 = ux * ux + uz * uz;
+      let t = ((x - net.ax) * ux + (z - net.az) * uz) / L2;
+      t = Math.max(0, Math.min(1, t));
+      best = Math.min(best, Math.hypot(x - (net.ax + ux * t), z - (net.az + uz * t)));
+    }
+    return best;
   },
 
   surfaceAt(x, z) {

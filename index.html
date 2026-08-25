@@ -140,7 +140,8 @@
     display: flex; flex-direction: column; align-items: center; gap: 4px;
     font-size: 12.5px; letter-spacing: 1px; font-weight: 600; opacity: .85;
   }
-  .strobe-line input { accent-color: #4de1ff; margin-right: 6px; cursor: pointer; }
+  .strobe-main { display: flex; align-items: center; gap: 8px; }
+  .strobe-line input { accent-color: #4de1ff; cursor: pointer; width: 15px; height: 15px; }
   .strobe-line .warn { font-size: 11px; opacity: .65; letter-spacing: .4px; font-weight: 500; }
   .overlay.hidden .strobe-line { pointer-events: none; }
   .btn {
@@ -192,8 +193,7 @@
       <button class="btn hard" data-diff="hard">HARD</button>
     </div>
     <label class="strobe-line">
-      <input type="checkbox" id="strobe-ok" checked />
-      allow ⚡ strobe rounds
+      <span class="strobe-main"><input type="checkbox" id="strobe-ok" checked /> allow ⚡ strobe rounds</span>
       <span class="warn">⚠ contains flashing lights — turn off if you are sensitive to them</span>
     </label>
   </div>
